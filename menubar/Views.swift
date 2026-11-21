@@ -132,20 +132,13 @@ struct TunnelSetupCard: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            if m.config.hostTrimmed.isEmpty {
-                Link(destination: Config.rentServerURL) {
-                    Text("Нет сервера? Арендовать").frame(maxWidth: .infinity)
-                }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Palette.blue)
-            }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.card))
     }
 }
 
-/// Окошко «?»: что это и как пользоваться. Ссылки подчёркнуты: в popover без этого они не отличаются от текста.
+/// Окошко «?»: что это и как пользоваться.
 struct AboutView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -161,16 +154,6 @@ struct AboutView: View {
                     .foregroundColor(Palette.sub)
             }
             .fixedSize(horizontal: false, vertical: true)
-
-            // Ссылки — столбиком, каждая на своей строке; так же в окне «?» на Windows.
-            VStack(alignment: .leading, spacing: 4) {
-                Link(destination: Config.toolPageURL) { Text("Подробнее об инструменте").underline() }
-                HStack(spacing: 0) {
-                    Text("Инструмент лаборатории ")
-                    Link(destination: Config.lifeOSURL) { Text("Life OS").underline() }
-                }
-            }
-            .padding(.top, 2)
         }
         .font(.system(size: 12))
         .padding(14)
@@ -224,17 +207,6 @@ struct PanelView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let v = m.updateAvailable {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle.fill").foregroundColor(Palette.blue)
-                    Text("Доступна версия \(v)").font(.system(size: 13))
-                    Spacer()
-                    Link("Скачать", destination: Update.downloadURL).font(.system(size: 13, weight: .medium))
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.card))
-            }
-
             HStack {
                 if let t = m.checkedAt, !m.checking {
                     Text("Проверено в \(t.formatted(date: .omitted, time: .shortened))")
@@ -263,27 +235,6 @@ struct Hint: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-/// Кнопка «i» — раздел статьи о программе на сайте.
-struct InfoLink: View {
-    let url: URL
-    let help: String
-    var body: some View {
-        Link(destination: url) { Image(systemName: "info.circle") }
-            .help(help)
-            .foregroundColor(.secondary)
-    }
-}
-
-/// Заголовок раздела настроек с кнопкой «i» справа.
-struct InfoHeader: View {
-    let title: String
-    let url: URL
-    let help: String
-    var body: some View {
-        HStack { Text(title); Spacer(); InfoLink(url: url, help: help) }
     }
 }
 
@@ -322,20 +273,10 @@ struct SettingsView: View {
                 TextField("SSH-порт", value: $draft.sshPort, format: plainInt)
                 Hint("Порт входа на сервер. Обычно 22 — менять, только если хостинг дал другой.")
                 if m.config.hostTrimmed.isEmpty {
-                    HStack {
-                        Text("Нет сервера? Подойдёт любой зарубежный VPS на Ubuntu или Debian.")
-                            .font(.caption).foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer()
-                        Link("Арендовать сервер", destination: Config.rentServerURL)
-                    }
+                    Hint("Нет сервера? Подойдёт любой зарубежный VPS на Ubuntu или Debian.")
                 }
             } header: {
-                HStack {
-                    StepHeader(n: 1, title: "Сервер", done: m.config.isComplete)
-                    Spacer()
-                    InfoLink(url: Config.howURL, help: "Как работает туннель — статья на сайте")
-                }
+                StepHeader(n: 1, title: "Сервер", done: m.config.isComplete)
             }
 
             Section {
@@ -366,7 +307,7 @@ struct SettingsView: View {
                     .frame(height: 120)
                 Hint("Браузер и приложение Claude: эти сайты — через сервер, остальные — напрямую. Один домен в строке, поддомены включаются. Пока включён VPN, список не действует. Изменения — после «Сохранить».")
             } header: {
-                InfoHeader(title: "Через туннель", url: Config.routesURL, help: "Что идёт через сервер — статья на сайте")
+                Text("Через туннель")
             }
 
             Section {
@@ -376,7 +317,7 @@ struct SettingsView: View {
                 toggle("Весь VS Code — через туннель", \.vscodeAll)
                 Hint("Всё, что делает VS Code, — любые расширения (Gemini, Copilot и другие), их загрузка и команды в его терминале — идёт через сервер. Действует, если открыть VS Code из Dock при включённом туннеле. Выключили туннель при открытом VS Code — он останется без сети до перезапуска.")
             } header: {
-                InfoHeader(title: "VS Code", url: Config.routesURL, help: "Что идёт через сервер — статья на сайте")
+                Text("VS Code")
             }
 
             Section {
@@ -396,7 +337,7 @@ struct SettingsView: View {
                 Button("Забыть ключ сервера…") { confirmForget = true }
                 Hint("Только если сервер переустановили и программа пишет, что его ключ изменился.")
             } header: {
-                InfoHeader(title: "Дополнительно", url: Config.limitsURL, help: "Ограничения — статья на сайте")
+                Text("Дополнительно")
             }
 
             if !note.isEmpty {
@@ -416,13 +357,6 @@ struct SettingsView: View {
                     set: { m.launchAtLogin = $0 }
                 ))
                 Hint("Программа откроется сама после включения Мака. Туннель при этом выключен — включается нажатием на карточку.")
-                Toggle("Отправлять анонимную статистику", isOn: Binding(
-                    get: { Update.sendStats },
-                    set: { Update.sendStats = $0; m.objectWillChange.send() }
-                ))
-                Text("Раз в день программа узнаёт, нет ли новой версии. Со статистикой она сообщает ещё случайный номер установки, версию, систему и включали ли сегодня туннель — чтобы автор видел, сколькими людьми программа пользуется. Адрес сервера, список сайтов и IP не сохраняются.")
-                    .font(.caption).foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {

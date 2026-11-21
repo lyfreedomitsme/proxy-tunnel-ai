@@ -104,32 +104,12 @@ Claude Code ── HTTPS_PROXY ─┐
 соединение `ControlPath=/tmp/pt-%C`, Windows — один `SshClient`), а «Проверить соединение» при отказе ждёт
 30 секунд и повторяет, не считая это провалом ключа.
 
-## Обновления и статистика
+## Выпуски
 
-Раз в день (и ещё раз — при первом за день включении туннеля) программа делает один GET на
-`https://stats.antonlozhkin.ru/pt/ping?os=mac|win&v=<версия>[&id=<32 hex>&on=0|1]` и получает
-`{"latest": "<номер последнего выпуска>", "url": …}`. Номер новее своего — в панели строка «Доступна версия…»
-со ссылкой на файл выпуска (`releases/latest/download/…`). Сама программа не скачивает и не ставит обновления.
-
-- `id` — случайный номер установки (UUID без дефисов), в `stats.json` в папке программы; `id` и `on` уходят только
-  при включённой галочке «Отправлять анонимную статистику» (Mac — `UserDefaults` `sendStats`, Windows —
-  `HKCU\Software\Proxy Tunnel\SendStats`). Без них запрос только узнаёт версию.
-- Сервер не хранит IP (nginx `access_log off`, отказы по частоте ниже уровня журнала), хранит по номеру: день
-  первого запроса, систему, версию и дни запросов за последние 35 дней. Номер последней версии сервер берёт у
-  GitHub (список выпусков, раз в час) **для каждой системы свой**: это выпуск, в котором файл этой системы
-  появился в нынешнем виде. Если в следующем выпуске лежит побайтно тот же файл (тот же sha256 у GitHub), для этой
-  системы выпуск не новый. Код сервера — не в этом репозитории.
-- Файлы: `menubar/Update.swift`, `windows/Update.cs` (класс `AppUpdate`: внутри окон WinForms имя `Update` занято методом `Control.Update`).
-
-Выпуск новой версии: поднять номер в `menubar/build.sh` (`CFBundleShortVersionString`) и
-`windows/ProxyTunnel.csproj` (`Version`), собрать `menubar/package.sh`, взять `ProxyTunnel-windows.exe` из
-сборки GitHub Actions и опубликовать выпуск с тегом `vX.Y` и обоими файлами под теми же именами — ссылки
-`releases/latest/download/…` в README и в программе начнут вести на него, а программы увидят его в течение часа.
-
-Выпуск только для одной системы (скажем, правка в `windows/`): номер поднимается только у неё, а файл другой
-системы кладётся в выпуск **тот же самый, скачанный из предыдущего выпуска** (`gh release download vX.Y -p
-ProxyTunnel-mac.dmg`), а не пересобранный: новая сборка даст другой sha256, и все увидят обновление, которого для
-них нет. Без файла выпускать нельзя: ссылка `releases/latest/download/…` для этой системы перестанет работать.
+Поднимите номер версии в `menubar/build.sh` (`CFBundleShortVersionString`) и
+`windows/ProxyTunnel.csproj` (`Version`). На macOS запустите `menubar/package.sh` для сборки DMG,
+а для Windows скачайте `ProxyTunnel-windows.exe` из сборки GitHub Actions форка.
+Форк не проверяет обновления автоматически.
 
 ## Ключи
 
@@ -158,11 +138,7 @@ ProxyTunnel-mac.dmg`), а не пересобранный: новая сборк
   с клиентом, у которого жёсткий «kill switch».
 - Файлы: `Config.swift` (настройки, PAC), `Net.swift` (интерфейс, DNS), `Tunnel.swift` (ssh, PAC-сервер),
   `Setup.swift` (ssh от имени админа), `Model.swift` (состояние, проверки, настройка), `Views.swift` (окна),
-  `Update.swift` (новая версия, статистика), `Terminal.swift` (Codex и Gemini в терминале).
-- Под каждой настройкой — подпись `Hint` (что произойдёт), у разделов — кнопка «i» (`InfoLink`) на раздел статьи
-  `antonlozhkin.ru/cases/proxy-tunnel/` (`site/content/cases/proxy-tunnel.md`): `#kak-rabotaet`,
-  `#chto-idiot-cherez-server`, `#ogranicheniia` (`Config.howURL` и соседние). Якорь — транслит заголовка: переименовали
-  заголовок в статье — поправьте ссылку в `Config.swift`. Новый файл — дописать в список `swiftc` в `build.sh`.
+  `Terminal.swift` (Codex и Gemini в терминале). Новый файл — дописать в список `swiftc` в `build.sh`.
 - Сборка: `menubar/build.sh` (swiftc, Intel + Apple Silicon, подпись ad hoc; Command Line Tools, macOS 13+);
   `menubar/package.sh` → `dist/ProxyTunnel-mac.dmg`. Тестов нет: проверка — сборка и `bash -n` скриптов.
 - Скрипты: `check.sh` (те же проверки; итог отдельно для Claude Code и для браузера с приложением Claude,

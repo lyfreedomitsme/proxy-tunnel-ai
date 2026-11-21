@@ -114,13 +114,6 @@ sealed class AboutForm : Form
         shown.Activate();
     }
 
-    static LinkLabel Link(string text, string url)
-    {
-        var l = new LinkLabel { Text = text, AutoSize = true, Font = Palette.Text, Margin = new Padding(0, 3, 0, 3) };
-        l.LinkClicked += (_, _) => Ui.Open(url);
-        return l;
-    }
-
     AboutForm()
     {
         const int W = 320;
@@ -142,14 +135,6 @@ sealed class AboutForm : Form
         col.Controls.Add(Ui.L("2. Нажмите на верхнюю карточку — туннель включится.", width: W));
         col.Controls.Add(Ui.L("3. Перезапустите Claude Code и браузер.", width: W));
         col.Controls.Add(Ui.L("Сайты для туннеля — в настройках, раздел «Через туннель». Если что-то не так — загляните в журнал.", Palette.Small, Palette.Sub, W));
-        // Ссылки — столбиком, каждая на своей строке.
-        var more = Link("Подробнее об инструменте", Config.ToolPageUrl);
-        more.Margin = new Padding(0, 12, 0, 3);
-        col.Controls.Add(more);
-        const string lab = "Инструмент лаборатории ";
-        var lifeos = Link(lab + "Life OS", Config.LifeOSUrl);
-        lifeos.LinkArea = new LinkArea(lab.Length, "Life OS".Length);
-        col.Controls.Add(lifeos);
         Controls.Add(col);
     }
 }
@@ -270,12 +255,6 @@ sealed class StatusForm : Form
             var setup = new Button { Text = "Настроить туннель…", Width = W, Height = 34, Font = Palette.Bold };
             setup.Click += (_, _) => { Hide(); app.ShowSettings(); };
             body.Controls.Add(setup);
-            if (core.Config.HostT.Length == 0)
-            {
-                var rent = new LinkLabel { Text = "Нет сервера? Арендовать", AutoSize = true, Font = Palette.Text, Margin = new Padding(0, 8, 0, 0) };
-                rent.LinkClicked += (_, _) => Ui.Open(Config.RentServerUrl);
-                body.Controls.Add(rent);
-            }
         }
         else
         {
@@ -291,15 +270,6 @@ sealed class StatusForm : Form
         }
 
         if (core.Message.Length > 0) body.Controls.Add(Ui.L(core.Message, Palette.Small, Palette.Sub, W));
-
-        if (core.UpdateAvailable is { } nv)
-        {
-            var upd = Ui.L($"Доступна версия {nv}", Palette.Bold, Palette.Blue);
-            upd.Margin = new Padding(0, 8, 8, 2);
-            var dl = new LinkLabel { Text = "Скачать", AutoSize = true, Font = Palette.Text, Margin = new Padding(0, 9, 0, 2) };
-            dl.LinkClicked += (_, _) => Ui.Open(AppUpdate.DownloadUrl);
-            body.Controls.Add(Ui.Row(upd, dl));
-        }
 
         if (core.Config.IsComplete && core.Enabled)
         {
@@ -354,7 +324,7 @@ sealed class SettingsForm : Form
 
     readonly TextBox host = new() { Width = 280 };
     readonly NumericUpDown sshPort = Num(22);
-    readonly LinkLabel rent = new() { Text = "Нет сервера? Подойдёт любой зарубежный VPS на Ubuntu или Debian — арендовать", AutoSize = true, MaximumSize = new Size(W, 0) };
+    readonly Label serverHint = Ui.L("Нет сервера? Подойдёт любой зарубежный VPS на Ubuntu или Debian.", Palette.Small, Palette.Sub, W);
 
     readonly RadioButton autoMode = new() { Text = "Автоматически", AutoSize = true, Checked = true };
     readonly RadioButton manualMode = new() { Text = "Вручную", AutoSize = true };
@@ -386,7 +356,6 @@ sealed class SettingsForm : Form
     readonly CheckBox claudeCode = new() { Text = "Claude Code — через туннель", AutoSize = true };
     readonly CheckBox codexCli = new() { Text = "Codex в терминале — через туннель", AutoSize = true };
     readonly CheckBox geminiCli = new() { Text = "Gemini в терминале — через туннель", AutoSize = true };
-    readonly CheckBox sendStats = new() { Text = "Отправлять анонимную статистику", AutoSize = true };
     readonly Label note = Ui.L("", Palette.Small, Palette.Sub, W);
     readonly System.Windows.Forms.Timer probeTimer = new() { Interval = 900 };
     bool loaded;
@@ -413,8 +382,7 @@ sealed class SettingsForm : Form
         root.Controls.Add(Ui.L("1. Сервер", Palette.Header));
         root.Controls.Add(Ui.Row(Ui.Caption("Адрес сервера"), host));
         root.Controls.Add(Ui.Row(Ui.Caption("SSH-порт"), sshPort));
-        rent.LinkClicked += (_, _) => Ui.Open(Config.RentServerUrl);
-        root.Controls.Add(rent);
+        root.Controls.Add(serverHint);
 
         // 2. Настройка сервера
         var h2 = Ui.L("2. Настройка сервера (один раз)", Palette.Header);
@@ -502,10 +470,6 @@ sealed class SettingsForm : Form
         autostart.Margin = new Padding(0, 14, 0, 4);
         autostart.CheckedChanged += (_, _) => { if (!loaded) return; try { Autostart.On = autostart.Checked; } catch (Exception e) { note.Text = "Автозапуск: " + e.Message; } };
         root.Controls.Add(autostart);
-        sendStats.Margin = new Padding(0, 4, 0, 2);
-        sendStats.CheckedChanged += (_, _) => { if (loaded) AppUpdate.SendStats = sendStats.Checked; };
-        root.Controls.Add(sendStats);
-        root.Controls.Add(Ui.L("Раз в день программа узнаёт, нет ли новой версии. Со статистикой она сообщает ещё случайный номер установки, версию, систему и включали ли сегодня туннель — чтобы автор видел, сколькими людьми программа пользуется. Адрес сервера, список сайтов и IP не сохраняются.", Palette.Small, Palette.Sub, W));
 
         var save = new Button { Text = "Сохранить", AutoSize = true, Font = Palette.Bold };
         save.Click += (_, _) => Save();
@@ -582,7 +546,6 @@ sealed class SettingsForm : Form
         claudeCode.Checked = c.ClaudeCode;
         codexCli.Checked = c.CodexCLI;
         geminiCli.Checked = c.GeminiCLI;
-        sendStats.Checked = AppUpdate.SendStats;
         note.Text = "";
         loaded = true;
         Sync();
@@ -636,7 +599,7 @@ sealed class SettingsForm : Form
     {
         if (IsDisposed) return;
         SuspendLayout();
-        rent.Visible = core.Config.HostT.Length == 0;
+        serverHint.Visible = core.Config.HostT.Length == 0;
         autoPanel.Visible = autoMode.Checked;
         manualPanel.Visible = manualMode.Checked;
         createTunnelKey.Visible = !File.Exists(Paths.TunnelKey);

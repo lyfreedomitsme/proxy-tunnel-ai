@@ -71,16 +71,6 @@ struct Config: Codable, Equatable {
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
-    /// Где взять сервер — показывается, пока сервер не задан (реферальная ссылка автора).
-    static let rentServerURL = URL(string: "https://cloud4box.com/?from=108671")!
-    /// Ссылки окошка «?»: страница инструмента, Life OS, автор.
-    static let toolPageURL = URL(string: "https://antonlozhkin.ru/cases/proxy-tunnel/")!
-    /// Разделы статьи — для кнопок «i» в настройках.
-    static let howURL = URL(string: "https://antonlozhkin.ru/cases/proxy-tunnel/#kak-rabotaet")!
-    static let routesURL = URL(string: "https://antonlozhkin.ru/cases/proxy-tunnel/#chto-idiot-cherez-server")!
-    static let limitsURL = URL(string: "https://antonlozhkin.ru/cases/proxy-tunnel/#ogranicheniia")!
-    static let lifeOSURL = URL(string: "https://lifeos.antonlozhkin.ru/")!
-
     static var fileURL: URL { supportDir.appendingPathComponent("config.json") }
     static var knownHostsURL: URL { supportDir.appendingPathComponent("known_hosts") }
     static var defaultKeyPath: String { supportDir.appendingPathComponent("id_ed25519").path }

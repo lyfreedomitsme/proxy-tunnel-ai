@@ -77,12 +77,6 @@ public sealed class Config
     public bool CodexCLI { get; set; } = true;
     public bool GeminiCLI { get; set; } = true;
 
-    /// Где взять сервер — показывается, пока сервер не задан (реферальная ссылка автора).
-    public const string RentServerUrl = "https://cloud4box.com/?from=108671";
-    /// Ссылки окна «?»: страница инструмента, Life OS, автор.
-    public const string ToolPageUrl = "https://antonlozhkin.ru/cases/proxy-tunnel/";
-    public const string LifeOSUrl = "https://lifeos.antonlozhkin.ru/";
-
     [JsonIgnore] public string HostT => Host.Trim();
     [JsonIgnore] public string AdminT => string.IsNullOrWhiteSpace(AdminUser) ? "root" : AdminUser.Trim();
     [JsonIgnore] public bool IsComplete => HostT.Length > 0 && File.Exists(Paths.TunnelKey);
