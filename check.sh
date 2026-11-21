@@ -8,7 +8,6 @@
 CONF="$HOME/Library/Application Support/Proxy Tunnel/config.json"
 STATE="$HOME/Library/Application Support/Proxy Tunnel/cli-proxy"
 conf() { python3 -c 'import json,sys;c=json.load(open(sys.argv[1]));print(c.get(sys.argv[2],sys.argv[3]))' "$CONF" "$1" "$2" 2>/dev/null || echo "$2"; }
-EXPECT_IP=$(conf host "")
 LOCAL=$(conf localPort 8888)
 PACP=$(conf pacPort 8889)
 PROXY="http://127.0.0.1:$LOCAL"
@@ -36,12 +35,16 @@ if lsof -nP -iTCP:"$LOCAL" -sTCP:LISTEN 2>/dev/null | grep -q ssh; then
 else
   fail "порт $LOCAL не слушает ssh"
 fi
-trace=$(curl -s -x "$PROXY" --max-time 10 https://claude.ai/cdn-cgi/trace)
+trace=$(curl -q -fs --noproxy '' -x "$PROXY" --max-time 10 https://claude.ai/cdn-cgi/trace) || trace=""
 ip=$(echo "$trace" | sed -n 's/^ip=//p'); loc=$(echo "$trace" | sed -n 's/^loc=//p')
-if [ -n "$ip" ] && [ "$ip" = "$EXPECT_IP" ] && [ "$loc" != "RU" ]; then
+if [ -n "$ip" ] && [ -n "$loc" ] && [ "$loc" != "RU" ]; then
   ok "claude.ai через туннель видит $ip, $loc"
+elif [ -z "$ip" ]; then
+  fail "нет ответа через туннель"
+elif [ -z "$loc" ]; then
+  fail "$ip — страна выхода неизвестна"
 else
-  fail "claude.ai через туннель видит «${ip:-нет ответа}» «${loc}» — ожидалось ${EXPECT_IP:-адрес из настроек}, не RU"
+  fail "$ip, RU — выход в России"
 fi
 
 if [ "$CLAUDE" = "True" ]; then
@@ -139,7 +142,7 @@ line "Браузер и приложение Claude" $bad_browser $warn_browser 
 echo
 other=$((bad_browser + bad_cli + bad_vs))
 if [ $bad_tunnel = 0 ] && [ $bad_cc = 0 ] && [ $other = 0 ]; then
-  if [ $warn_browser = 1 ] || [ $warn_vs = 1 ]; then echo "МОЖНО, с оговорками «!» выше ($EXPECT_IP)."; else echo "МОЖНО: всё через туннель ($EXPECT_IP)."; fi
+  if [ $warn_browser = 1 ] || [ $warn_vs = 1 ]; then echo "МОЖНО, с оговорками «!» выше ($ip, $loc)."; else echo "МОЖНО: всё через туннель ($ip, $loc)."; fi
   exit 0
 elif [ $bad_tunnel = 0 ] && [ $bad_cc = 0 ]; then
   no=""; [ $bad_browser = 1 ] && no="claude.ai и приложение Claude"

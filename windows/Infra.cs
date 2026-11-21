@@ -678,10 +678,11 @@ public static class Net
         catch { return ""; }
     }
 
-    public static string? ResolveIPv4(string host)
+    public static (bool ok, string detail) CheckExit(string ip, string loc)
     {
-        if (IPAddress.TryParse(host, out var a)) return a.ToString();
-        try { return Dns.GetHostAddresses(host).FirstOrDefault(x => x.AddressFamily == AddressFamily.InterNetwork)?.ToString(); }
-        catch { return null; }
+        if (ip.Length == 0) return (false, "нет ответа через туннель");
+        if (loc.Length == 0) return (false, $"{ip} — страна выхода неизвестна");
+        if (loc == "RU") return (false, $"{ip}, RU — выход в России");
+        return (true, $"{ip}, {loc}");
     }
 }

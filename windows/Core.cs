@@ -33,6 +33,7 @@ public sealed class Core
     public List<Step> Steps = new();
     public bool ForeignPac;
     bool announceOn;
+    public const string RestartHint = "Если приложения или терминалы уже открыты, закройте их и откройте снова.";
 
     // настройка сервера
     public AccessState Access = AccessState.Idle;
@@ -92,7 +93,8 @@ public sealed class Core
     {
         if (!Config.IsComplete || Busy) return;
         Enabled = !Enabled;
-        Message = Enabled ? "" : "Туннель выключен: Claude Code и браузер ходят напрямую. Перезапустите Claude Code, если он открыт.";
+        announceOn = Enabled;
+        Message = Enabled ? "" : RestartHint;
         Fire();
         await StartServices();
     }
@@ -203,10 +205,7 @@ public sealed class Core
         i++;
 
         var (ip, loc) = await Net.Trace(c.ProxyUrl);
-        var expected = await Task.Run(() => Net.ResolveIPv4(c.HostT));
-        var ipOk = ip.Length > 0 && loc != "RU" && (expected == null || ip == expected);
-        work[i].Ok = ipOk;
-        work[i].Detail = ip.Length == 0 ? "нет ответа" : $"{ip}, {loc}" + (!ipOk && expected != null ? $" — ожидался {expected}" : "");
+        (work[i].Ok, work[i].Detail) = Net.CheckExit(ip, loc);
         i++;
 
         if (c.ClaudeCode)
@@ -251,10 +250,10 @@ public sealed class Core
         Steps = work;
         VerdictOK = work.All(s => s.Ok == true);
         CheckedAt = DateTime.Now;
-        if (announceOn)
+        if (announceOn && VerdictOK && e == null)
         {
             announceOn = false;
-            Message = VerdictOK ? "Туннель включён для Claude. Перезапустите Claude, если он был открыт." : "";
+            Message = RestartHint;
         }
         Checking = false;
         Busy = false;
@@ -434,6 +433,7 @@ public sealed class Core
 
         c.AdminUser = admin;
         Enabled = true;   // сервер только что настроен — туннель включается
+        announceOn = true;
         Config = c;
         try { c.Save(); } catch { }
         await StartServices();
@@ -443,18 +443,10 @@ public sealed class Core
             (ip, loc) = await Net.Trace(c.ProxyUrl);
             if (ip.Length == 0) await Task.Delay(2000);
         }
-        if (ip.Length > 0 && loc != "RU")
-        {
-            SetupSteps[last].Ok = true;
-            SetupSteps[last].Detail = $"выход: {ip}, {loc}";
-            SetupDone = true;
-        }
-        else
-        {
-            SetupSteps[last].Ok = false;
-            SetupSteps[last].Detail = ip.Length == 0 ? (Tunnel.LastError.Length > 0 ? Tunnel.LastError : "нет ответа через туннель")
-                                                     : $"выход {ip}, {loc} — это Россия";
-        }
+        var exit = Net.CheckExit(ip, loc);
+        SetupDone = exit.ok;
+        SetupSteps[last].Ok = exit.ok;
+        SetupSteps[last].Detail = ip.Length == 0 && Tunnel.LastError.Length > 0 ? Tunnel.LastError : exit.detail;
         SetupSteps[last].Running = false;
 
         // «Доступ к серверу» — по тому, что настройка уже проверила, без новых подключений.

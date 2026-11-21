@@ -43,17 +43,11 @@ func run(_ args: [String]) async -> (Int32, String) {
     }
 }
 
-func resolveIPv4(_ host: String) -> String? {
-    var hints = addrinfo(ai_flags: 0, ai_family: AF_INET, ai_socktype: SOCK_STREAM, ai_protocol: 0,
-                         ai_addrlen: 0, ai_canonname: nil, ai_addr: nil, ai_next: nil)
-    var res: UnsafeMutablePointer<addrinfo>?
-    guard getaddrinfo(host, nil, &hints, &res) == 0, let r = res, let sa = r.pointee.ai_addr else { return nil }
-    defer { freeaddrinfo(res) }
-    var addr = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
-    var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-    inet_ntop(AF_INET, &addr, &buf, socklen_t(INET_ADDRSTRLEN))
-    let ip = String(cString: buf)
-    return ip.hasPrefix("198.18.") ? nil : ip   // поддельный DNS VPN-клиента — не настоящий адрес
+private func checkExit(_ ip: String, _ loc: String) -> (ok: Bool, detail: String) {
+    if ip.isEmpty { return (false, "нет ответа через туннель") }
+    if loc.isEmpty { return (false, "\(ip) — страна выхода неизвестна") }
+    if loc == "RU" { return (false, "\(ip), RU — выход в России") }
+    return (true, "\(ip), \(loc)")
 }
 
 /// ~/.claude/settings.json: трогаем только env.HTTPS_PROXY и env.NO_PROXY.
@@ -405,14 +399,9 @@ final class Model: ObservableObject {
         else { t1 = await tunnelRoute() }
         await step(i, tunnel.running && port, t1); i += 1
 
-        // Доказательство для всего, что идёт через прокси: claude.ai видит адрес сервера, а не VPN и не Россию.
         let (ip, loc) = await traceViaTunnel()
-        let host = config.hostTrimmed
-        let expected = await Task.detached { Net.cached(host) ?? (Net.isIP(host) ? host : resolveIPv4(host)) }.value
-        let ipOK = !ip.isEmpty && loc != "RU" && (expected == nil || ip == expected)
-        var t2 = ip.isEmpty ? "нет ответа" : "\(ip), \(loc)"
-        if !ip.isEmpty && !ipOK, let e = expected { t2 += " — ожидался \(e)" }
-        await step(i, ipOK, t2); i += 1
+        let exit = checkExit(ip, loc)
+        await step(i, exit.ok, exit.detail); i += 1
 
         // Claude Code берёт прокси из своих настроек — VPN на это не влияет.
         if config.claudeCode {
@@ -675,13 +664,9 @@ final class Model: ObservableObject {
             (ip, loc) = await traceViaTunnel()
             if !ip.isEmpty { break }
         }
-        if !ip.isEmpty && loc != "RU" {
-            setupStep(last, true, "выход: \(ip), \(loc)")
-            setupDone = true
-        } else {
-            let why = tunnel.lastError.isEmpty ? "нет ответа через туннель" : tunnel.lastError
-            setupStep(last, false, ip.isEmpty ? why : "выход \(ip), \(loc) — это Россия")
-        }
+        let exit = checkExit(ip, loc)
+        setupDone = exit.ok
+        setupStep(last, exit.ok, ip.isEmpty && !tunnel.lastError.isEmpty ? tunnel.lastError : exit.detail)
         // «Доступ к серверу» — по тому, что настройка уже проверила, без новых подключений
         // (на сервере может быть ограничение частоты). Повторная проверка — кнопкой «Проверить соединение».
         let keyWorks = !byPassword || (wantAdminKey && setupSteps[3].state == .ok)
@@ -815,9 +800,10 @@ final class Model: ObservableObject {
     }
 
     func traceViaTunnel() async -> (String, String) {
-        let (_, trace) = await run(["/usr/bin/curl", "-s", "-x", config.proxyURL, "--max-time", "8",
+        let (code, trace) = await run(["/usr/bin/curl", "-q", "-fsS", "--noproxy", "", "-x", config.proxyURL, "--max-time", "8",
                                     "https://claude.ai/cdn-cgi/trace"])
         var ip = "", loc = ""
+        guard code == 0 else { return ("", "") }
         for line in trace.split(separator: "\n") {
             if line.hasPrefix("ip=") { ip = String(line.dropFirst(3)) }
             if line.hasPrefix("loc=") { loc = String(line.dropFirst(4)) }
