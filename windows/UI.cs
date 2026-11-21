@@ -442,6 +442,8 @@ sealed class StatusForm : TunnelWindow
             return ("Туннель не настроен", "Укажите адрес своего сервера, чтобы начать.", Color.White);
         if (!core.Enabled)
             return ("Туннель выключен", "Выбранные приложения и сайты подключаются напрямую.", Color.White);
+        if (!core.Tunnel.Running && core.Tunnel.LastError.Length > 0)
+            return ("Соединение прервано", core.Tunnel.LastError, Palette.Red);
         if (core.Checking)
             return ("Проверка подключения…", "", Palette.Accent);
         if (core.VerdictOK)
@@ -1010,6 +1012,7 @@ public sealed class TrayApp : ApplicationContext
         string state;
         if (!core.Config.IsComplete) state = "setup";
         else if (!core.Enabled) state = "off";
+        else if (!core.Tunnel.Running && core.Tunnel.LastError.Length > 0) state = "fail";
         else if (core.Checking || core.Steps.Count == 0) state = "connecting";
         else if (core.VerdictOK) state = "ok";
         else if (core.Steps.Count > 1 && core.Steps[^1].Ok == false && core.Steps.Take(core.Steps.Count - 1).All(s => s.Ok == true)) state = "partial";

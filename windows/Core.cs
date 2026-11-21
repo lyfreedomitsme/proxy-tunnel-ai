@@ -33,6 +33,9 @@ public sealed class Core
     public List<Step> Steps = new();
     public bool ForeignPac;
     bool announceOn;
+    bool lastTunnelRunning;
+    int serviceGeneration;
+    static readonly TimeSpan HealthInterval = TimeSpan.FromSeconds(30);
     public const string RestartHint = "Если приложения или терминалы уже открыты, закройте их и откройте снова.";
 
     // настройка сервера
@@ -59,8 +62,23 @@ public sealed class Core
     public Core()
     {
         ui = SynchronizationContext.Current ?? new SynchronizationContext();
-        var timer = new System.Windows.Forms.Timer { Interval = 120_000 };
-        timer.Tick += async (_, _) => await Refresh(quiet: true);
+        var timer = new System.Windows.Forms.Timer { Interval = 2000 };
+        timer.Tick += async (_, _) =>
+        {
+            if (!Enabled) return;
+            var running = Tunnel.Running;
+            if (!running && lastTunnelRunning)
+            {
+                serviceGeneration++;
+                VerdictOK = false;
+                CheckedAt = null;
+                Steps.Clear();
+                Fire();
+            }
+            lastTunnelRunning = running;
+            if (running && !Busy && (CheckedAt == null || DateTime.Now - CheckedAt >= HealthInterval))
+                await Refresh(quiet: true);
+        };
         timer.Start();
     }
 
@@ -69,14 +87,16 @@ public sealed class Core
     /// Туннель выключен — гасит его и снимает настройки (в том числе оставшиеся после аварийного закрытия).
     public async Task StartServices(bool refreshPac = true)
     {
+        serviceGeneration++;
+        lastTunnelRunning = false;
+        VerdictOK = false;
+        CheckedAt = null;
+        Steps.Clear();
         Tunnel.Stop();
         if (!(Config.IsComplete && Enabled))
         {
             Pac.Stop();
             RemoveSystem();
-            Steps.Clear();
-            VerdictOK = false;
-            CheckedAt = null;
             Fire();
             return;
         }
@@ -182,6 +202,7 @@ public sealed class Core
     {
         if (Busy) return;
         if (!(Config.IsComplete && Enabled)) { Steps.Clear(); VerdictOK = false; Fire(); return; }
+        var generation = serviceGeneration;
         Busy = true;
         Checking = !quiet;
         Fire();
@@ -204,7 +225,7 @@ public sealed class Core
         work[i].Detail = running ? "" : (Tunnel.LastError.Length > 0 ? Tunnel.LastError : "подключаюсь…");
         i++;
 
-        var (ip, loc) = await Net.Trace(c.ProxyUrl);
+        var (ip, loc) = running ? await Net.Trace(c.ProxyUrl) : ("", "");
         (work[i].Ok, work[i].Detail) = Net.CheckExit(ip, loc);
         i++;
 
@@ -230,21 +251,43 @@ public sealed class Core
         }
 
         var ours = SystemProxy.IsOurs(c.PacBase);
-        var manual = SystemProxy.ManualProxyOn();
         var served = (await Net.Get(c.PacBase)).Contains($"PROXY 127.0.0.1:{c.LocalPort}");
-        work[i].Ok = ours && !manual && served;
+        var domains = c.CleanDomains();
+        var conflict = ours && served && SystemProxy.ManualProxyOn() &&
+            !await Task.Run(() => SystemProxy.RoutesThroughTunnel(domains, c.ProxyUrl));
+        work[i].Ok = ours && served && !conflict;
         if (!ours)
             work[i].Detail = ForeignPac ? "В Windows уже стоит другой PAC — программа его не трогает"
                                         : "Windows не применяет PAC туннеля";
-        else if (manual)
-            work[i].Detail = "В Windows включён ещё и обычный прокси (другая программа?) — браузер может пойти через него";
         else if (!served)
             work[i].Detail = Pac.Error.Length > 0 ? Pac.Error : "PAC не раздаётся — эти сайты не откроются";
+        else if (conflict)
+            work[i].Detail = "Системный прокси Windows мешает применить список сайтов туннеля.";
         else
         {
-            var list = c.CleanDomains();
-            var shown = string.Join(", ", list.Take(3)) + (list.Count > 3 ? $" и ещё {list.Count - 3}" : "");
-            work[i].Detail = $"в браузере и приложении Claude: {shown}. Остальное — напрямую; добавить — Настройки → «Через туннель»";
+            var shown = string.Join(", ", domains.Take(3)) + (domains.Count > 3 ? $" и ещё {domains.Count - 3}" : "");
+            work[i].Detail = $"в браузере и приложении Claude: {shown}. Остальное — напрямую; изменить — Настройки → «Маршрутизация»";
+        }
+
+        if (generation != serviceGeneration || !Enabled)
+        {
+            Checking = false;
+            Busy = false;
+            Fire();
+            return;
+        }
+        if (!Tunnel.Running)
+        {
+            work[0].Ok = false;
+            work[0].Detail = Tunnel.LastError.Length > 0 ? Tunnel.LastError : "ожидаю подключения";
+        }
+        if (!work.All(s => s.Ok == true))
+        {
+            foreach (var failed in work.Where(s => s.Ok == false))
+            {
+                if (!quiet || !Steps.Any(previous => previous.Title == failed.Title && previous.Ok == false && previous.Detail == failed.Detail))
+                    Log.Append($"проверка: {failed.Title} — {failed.Detail}");
+            }
         }
 
         Steps = work;

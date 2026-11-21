@@ -397,6 +397,7 @@ public sealed class Tunnel
     public void Start(Config c)
     {
         Stop();
+        LastError = "";
         cts = new CancellationTokenSource();
         var token = cts.Token;
         var cfg = c.Clone();
@@ -446,7 +447,13 @@ public sealed class Tunnel
                 LastError = Ssh.Explain(e);
                 Log.Append("туннель: " + e.Message);
             }
-            Running = false;
+            if (Running && !t.IsCancellationRequested)
+            {
+                if (LastError.Length == 0) LastError = "SSH-соединение прервано";
+                Running = false;
+                Log.Append("туннель отключён: " + LastError);
+            }
+            else Running = false;
             Close();
             if (t.IsCancellationRequested) break;
             try { await Task.Delay(TimeSpan.FromSeconds(backoff), t); } catch { break; }
@@ -544,6 +551,24 @@ public static class SystemProxy
     {
         using var k = Registry.CurrentUser.OpenSubKey(Key);
         return k?.GetValue("ProxyEnable") is int v && v == 1;
+    }
+
+    // Проверяем, какой маршрут Windows выбирает с учётом PAC и ручного прокси.
+    public static bool RoutesThroughTunnel(IReadOnlyList<string> domains, string proxyUrl)
+    {
+        var expected = new Uri(proxyUrl);
+        try
+        {
+            var proxy = WebRequest.GetSystemWebProxy();
+            if (proxy == null) return false;
+            foreach (var domain in domains)
+            {
+                if (!Uri.TryCreate("https://" + domain, UriKind.Absolute, out var site)) return false;
+                if (proxy.GetProxy(site) != expected) return false;
+            }
+            return true;
+        }
+        catch { return false; }
     }
 
     public static bool IsOurs(string pacBase) => CurrentPac()?.StartsWith(pacBase) == true;
