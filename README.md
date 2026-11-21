@@ -6,7 +6,7 @@
 
 ![Панель Proxy Tunnel в Windows с активным соединением и демонстрационным IP выхода](docs/images/connected.png)
 
-[Короткое видео о Windows-версии](https://github.com/lyfreedomitsme/proxy-tunnel-ai/releases/download/v1.4.0/ProxyTunnel-1.4-Demo.mp4)
+![Демо Proxy Tunnel для Windows. Настройка сервера, выбор приложений и подключение](docs/images/demo.gif)
 
 ## Подключение
 
