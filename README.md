@@ -6,6 +6,8 @@
 
 ![Панель Proxy Tunnel в Windows с активным соединением и демонстрационным IP выхода](docs/images/connected.png)
 
+[Короткое видео о Windows-версии](https://github.com/lyfreedomitsme/proxy-tunnel-ai/releases/download/v1.4.0/ProxyTunnel-1.4-Demo.mp4)
+
 ## Подключение
 
 Понадобятся Windows 10/11 или macOS 13+, SSH-доступ к своему серверу и выход в интернет за пределами РФ. Автоматическая установка прокси поддерживает Ubuntu и Debian.
